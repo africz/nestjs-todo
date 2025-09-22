@@ -1,23 +1,258 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Todo Backend API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+A comprehensive NestJS backend API for todo management with MySQL database integration.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
+## Features
+
+- 🚀 **RESTful API** with full CRUD operations
+- 📊 **Statistics & Analytics** for todo tracking
+- 🔍 **Advanced Filtering** by status, priority, category, date range, and search
+- 📅 **Due Date Management** with overdue detection
+- 🏷️ **Priority & Category System** for organization
+- 📝 **Comprehensive Validation** with class-validator
+- 📚 **API Documentation** with Swagger/OpenAPI
+- 🗄️ **MySQL Database** with TypeORM
+- 🐳 **Docker Ready** with production configurations
+
+## API Endpoints
+
+### Todo Management
+- `POST /api/todos` - Create a new todo
+- `GET /api/todos` - Get all todos (with filtering)
+- `GET /api/todos/:id` - Get a specific todo
+- `PATCH /api/todos/:id` - Update a todo
+- `DELETE /api/todos/:id` - Delete a todo
+- `PATCH /api/todos/:id/toggle` - Toggle todo completion
+
+### Analytics & Filtering
+- `GET /api/todos/statistics` - Get comprehensive statistics
+- `GET /api/todos/overdue` - Get overdue todos
+- `GET /api/todos/upcoming?days=7` - Get upcoming todos
+- `GET /api/todos/category/:category` - Get todos by category
+- `GET /api/todos/priority/:priority` - Get todos by priority
+
+### Query Parameters
+- `status` - Filter by completion status (completed/pending)
+- `priority` - Filter by priority (low/medium/high/urgent)
+- `category` - Filter by category
+- `startDate` & `endDate` - Filter by date range (YYYY-MM-DD)
+- `search` - Search in title and description
+
+## Data Model
+
+### Todo Entity
+```typescript
+{
+  id: string;           // UUID primary key
+  title: string;        // Todo title (required, max 255 chars)
+  description: string;  // Detailed description (optional)
+  date: string;         // Due date (YYYY-MM-DD format)
+  hours: number;        // Estimated hours to complete
+  done: boolean;        // Completion status
+  priority: string;     // Priority level (low/medium/high/urgent)
+  category: string;     // Category/tag (optional)
+  createdAt: Date;      // Creation timestamp
+  updatedAt: Date;      // Last update timestamp
+  completedAt: Date;    // Completion timestamp (when marked done)
+}
+```
+
+## Getting Started
+
+### Prerequisites
+- Node.js 20+ 
+- MySQL 8.0+
+- npm or yarn
+
+### Installation
+
+1. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+2. **Configure environment:**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your database credentials
+   ```
+
+3. **Database setup:**
+   ```bash
+   # Create database
+   mysql -u root -p -e "CREATE DATABASE todoapp;"
+   ```
+
+4. **Start development server:**
+   ```bash
+   npm run start:dev
+   ```
+
+### Environment Variables
+
+```env
+# Application
+NODE_ENV=development
+PORT=3000
+HOST=0.0.0.0
+
+# Database
+DB_HOST=localhost
+DB_PORT=3306
+DB_USERNAME=root
+DB_PASSWORD=password
+DB_DATABASE=todoapp
+
+# Security
+JWT_SECRET=your-secret-key
+JWT_EXPIRES_IN=24h
+
+# CORS
+CORS_ORIGIN=*
+```
+
+## Development
+
+### Available Scripts
+
+```bash
+npm run start:dev    # Start development server with hot reload
+npm run start:debug  # Start with debugging enabled
+npm run build        # Build for production
+npm run start:prod   # Start production server
+npm run test         # Run unit tests
+npm run test:e2e     # Run end-to-end tests
+npm run lint         # Run ESLint
+npm run format       # Format code with Prettier
+```
+
+### API Documentation
+
+Once the server is running, visit:
+- **Swagger UI:** http://localhost:3000/api/docs
+- **OpenAPI JSON:** http://localhost:3000/api/docs-json
+
+### Database Schema
+
+The application uses TypeORM with automatic schema synchronization in development mode. The todo table will be created automatically with the following structure:
+
+```sql
+CREATE TABLE todos (
+  id VARCHAR(36) PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  date DATE NOT NULL,
+  hours DECIMAL(10,2) DEFAULT 0,
+  done BOOLEAN DEFAULT FALSE,
+  priority ENUM('low', 'medium', 'high', 'urgent') DEFAULT 'medium',
+  category VARCHAR(100),
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  completedAt TIMESTAMP NULL
+);
+```
+
+## Production Deployment
+
+### Using Docker
+
+The application is Docker-ready with configurations in the `/docker` directory.
+
+```bash
+# Build and start with Docker Compose
+cd ../../docker
+make nestjs-todo-up
+
+# Or manually with docker
+docker build -t todo-backend .
+docker run -p 3000:3000 --env-file .env todo-backend
+```
+
+### Manual Deployment
+
+1. **Build the application:**
+   ```bash
+   npm run build
+   ```
+
+2. **Set production environment:**
+   ```bash
+   export NODE_ENV=production
+   export DB_HOST=your-production-db-host
+   # ... other environment variables
+   ```
+
+3. **Start the server:**
+   ```bash
+   npm run start:prod
+   ```
+
+## Testing
+
+### Sample API Calls
+
+```bash
+# Create a todo
+curl -X POST http://localhost:3000/api/todos \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Complete documentation",
+    "description": "Write comprehensive API documentation",
+    "date": "2025-09-25",
+    "hours": 4,
+    "priority": "high",
+    "category": "work"
+  }'
+
+# Get all todos
+curl http://localhost:3000/api/todos
+
+# Get statistics
+curl http://localhost:3000/api/todos/statistics
+
+# Filter todos
+curl "http://localhost:3000/api/todos?status=pending&priority=high"
+
+# Toggle completion
+curl -X PATCH http://localhost:3000/api/todos/{id}/toggle
+```
+
+## Architecture
+
+### Project Structure
+```
+src/
+├── config/           # Configuration files
+├── todo/            # Todo module
+│   ├── dto/         # Data Transfer Objects
+│   ├── entities/    # Database entities
+│   ├── todo.controller.ts
+│   ├── todo.service.ts
+│   └── todo.module.ts
+├── app.module.ts    # Main application module
+└── main.ts          # Application bootstrap
+```
+
+### Key Technologies
+- **NestJS** - Progressive Node.js framework
+- **TypeORM** - Database ORM with TypeScript support
+- **MySQL** - Relational database
+- **class-validator** - Validation decorators
+- **Swagger** - API documentation
+- **Docker** - Containerization
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Run `npm run lint` and `npm run test`
+6. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License.
   <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
   [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
 
