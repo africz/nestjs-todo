@@ -9,9 +9,9 @@ document.addEventListener('DOMContentLoaded', () => {
 async function fetchTodos(filter = '') {
     let url = API_URL;
     if (filter === 'completed') {
-        url = `${API_URL}/status/true`;
+        url = `${API_URL}?status=completed`;
     } else if (filter === 'pending') {
-        url = `${API_URL}/status/false`;
+        url = `${API_URL}?status=pending`;
     }
     try {
         const response = await fetch(url);
