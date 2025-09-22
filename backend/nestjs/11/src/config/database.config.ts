@@ -11,6 +11,8 @@ export const databaseConfig: TypeOrmModuleOptions = {
   entities: [Todo],
   synchronize: process.env.NODE_ENV !== 'production', // Auto-create tables in development
   logging: process.env.NODE_ENV === 'development',
-  timezone: 'UTC',
   charset: 'utf8mb4',
+  extra: {
+    charset: 'utf8mb4_unicode_ci',
+  },
 };

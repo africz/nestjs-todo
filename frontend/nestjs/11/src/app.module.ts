@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { TodoModule } from './todo/todo.module';
+import { HttpModule } from '@nestjs/axios';
 
 @Module({
   imports: [
@@ -10,7 +10,7 @@ import { TodoModule } from './todo/todo.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
-    TodoModule,
+    HttpModule,
   ],
   controllers: [AppController],
   providers: [AppService],
