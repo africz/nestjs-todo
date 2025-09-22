@@ -1,0 +1,2 @@
+traefik/config/ssl/cert.pem
+traefik/config/ssl/key.pem

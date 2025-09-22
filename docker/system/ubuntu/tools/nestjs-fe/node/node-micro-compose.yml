@@ -1,0 +1,28 @@
+
+services:
+  nestjs-fe-node:
+    container_name: nestjs-fe-node
+    profiles:
+    - tools
+    - all
+    - nestjs-fe-node
+    image: ${PROJECT_NAME}-${CONFIG_SYSTEM}-micro-${CONFIG_FRONTEND}-${CONFIG_FRONTEND_VERSION}-nestjs-fe-node-${VERSION}:latest
+    build: .
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.nestjs-fe-node.rule=Host(`nestjs-fe-node-${DOMAIN}`)
+      - traefik.http.routers.nestjs-fe-node.tls=${DOCKER_STACK_SSL}
+      - traefik.http.services.nestjs-fe-node.loadbalancer.server.port=80
+    volumes:
+      - ${PROJECT_PATH}/frontend/${CONFIG_FRONTEND}/${CONFIG_FRONTEND_VERSION}:/var/www/html:consistent
+    environment:
+      NODE_ENV: development
+    tty: true
+    #command: /bin/bash
+    command: npm run start:dev
+    #command: npm run --prefix /var/www/html dev
+    networks:
+      - proxy
+      - host_network
+  

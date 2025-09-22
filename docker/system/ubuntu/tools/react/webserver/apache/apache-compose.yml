@@ -1,0 +1,33 @@
+services:
+  apache:
+    container_name: apache
+    profiles:
+    - frontend
+    - all
+    - react-apache
+    image: ${PROJECT_NAME}-${CONFIG_SYSTEM}-micro-${CONFIG_FRONTEND}-${CONFIG_FRONTEND_VERSION}-react-nginx-${VERSION}:latest
+    build: .
+    env_file:
+      - ${PROJECT_PATH}/docker/.env
+    environment:
+      - DOMAIN=${DOMAIN}  
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.frontend.rule=Host(`react-${DOMAIN}`)
+      - traefik.http.routers.frontend.tls=${DOCKER_STACK_SSL}
+      - traefik.http.services.frontend.loadbalancer.server.port=80
+    depends_on:
+      - php 
+      - traefik
+    volumes:
+      - ${PROJECT_PATH}/frontend/${CONFIG_FRONTEND}/${CONFIG_FRONTEND_VERSION}:/var/www/html:consistent
+    networks:
+      - proxy
+      - host_network
+    #tty need for error log to standard error
+    tty: true
+    #command: /bin/bash
+    #command: /entrypoint.sh only for apache, nginx require nothing
+    command: /entrypoint.sh
+

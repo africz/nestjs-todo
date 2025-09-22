@@ -1,0 +1,20 @@
+services:
+  php:
+    container_name: php
+    profiles:
+    - backend
+    - all
+    - php
+    image: ${PROJECT_NAME}-${CONFIG_SYSTEM}-micro-${CONFIG_BACKEND}-${CONFIG_BACKEND_VERSION}-php-${VERSION}:latest
+    build: .
+    volumes:
+      - ${PROJECT_PATH}/backend/${CONFIG_BACKEND}/${CONFIG_BACKEND_VERSION}:/var/www/html:consistent
+      - ${PROJECT_PATH}/backend/${CONFIG_BACKEND}/${CONFIG_BACKEND_VERSION}/var/xdebug:/tmp/xdebug
+      - ${PROJECT_PATH}/docs/phpdoc:/var/www/html/docs/phpdoc
+    networks:
+      - proxy
+      - host_network
+    #tty need for error log to standard error
+    tty: true
+    #command: /bin/bash
+    

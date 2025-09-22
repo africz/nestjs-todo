@@ -1,0 +1,25 @@
+
+#!/bin/bash
+source ../../../../../.env
+
+source "$PROJECT_PATH/docker/traefik/certgen"
+# Example usage: call central certgen
+DOMAINS=(
+    "vue-${DOMAIN}"
+    "laravel-${DOMAIN}"
+    "vue-node-${DOMAIN}"
+    "laravel-node-${DOMAIN}"
+   
+)
+
+FOLDERS=(
+"${PROJECT_PATH}/docker/system/${CONFIG_SYSTEM}/tools/react/webserver/apache/ssl"
+"${PROJECT_PATH}/docker/system/${CONFIG_SYSTEM}/tools/react/webserver/nginx/ssl"
+"${PROJECT_PATH}/docker/system/${CONFIG_SYSTEM}/tools/laravel/webserver/nginx/ssl"
+"${PROJECT_PATH}/docker/system/${CONFIG_SYSTEM}/tools/laravel/webserver/apache/ssl"
+)
+
+generate_cert "${DOMAINS[@]}"
+copy_certs "${FOLDERS[@]}"
+
+

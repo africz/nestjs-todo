@@ -1,0 +1,2 @@
+include:
+ - ../../../../../tools/nestjs-be/webserver/nginx/nginx-micro-compose.yml

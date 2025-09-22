@@ -1,0 +1,19 @@
+
+#include common services here
+include:
+  - ../system/${CONFIG_SYSTEM}/tools/mailbox/mailbox-compose.yml
+  - ../system/${CONFIG_SYSTEM}/tools/cache/redis/redis-compose.yml
+  - ../system/${CONFIG_SYSTEM}/tools/cache/redis-commander/redis-commander-compose.yml
+  - ../system/${CONFIG_SYSTEM}/backend/${CONFIG_BACKEND}/${CONFIG_BACKEND_VERSION}/database/mysql/mysql-compose.yml
+  - ../system/${CONFIG_SYSTEM}/backend/${CONFIG_BACKEND}/${CONFIG_BACKEND_VERSION}/webserver/nginx/nginx-compose.yml
+  - ../system/${CONFIG_SYSTEM}/backend/${CONFIG_BACKEND}/${CONFIG_BACKEND_VERSION}/node/node-compose.yml
+  - ../system/${CONFIG_SYSTEM}/frontend/${CONFIG_FRONTEND}/${CONFIG_FRONTEND_VERSION}/webserver/nginx/nginx-compose.yml
+  - ../system/${CONFIG_SYSTEM}/frontend/${CONFIG_FRONTEND}/${CONFIG_FRONTEND_VERSION}/node/node-compose.yml
+  - ../traefik/traefik-compose.yml
+networks:
+  host_network:
+    driver: bridge
+  proxy:
+    external: true
+volumes:
+  nestjs-todo-ubuntu-micro-nestjs-11-mysql-db:

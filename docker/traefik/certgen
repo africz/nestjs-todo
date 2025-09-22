@@ -1,0 +1,41 @@
+
+
+# Define your destination paths as an array
+# EXAMPLE_DEST_PATHS=(
+#     "/path/to/service1/ssl"
+#     "/path/to/service2/ssl"
+# )
+
+# Set source path for certs (where mkcert outputs)
+SSL_SOURCE_PATH="$PROJECT_PATH/docker/traefik/config/ssl"
+
+# Copy certs to all destinations
+#copy_certs "${EXAMPLE_DEST_PATHS[@]}"
+#!/bin/bash
+if [[ -n "$PROJECT_PATH" && -f "$PROJECT_PATH/docker/.env" ]]; then
+    source "$PROJECT_PATH/docker/.env"
+elif [[ -f "../.env" ]]; then
+    source "../.env"
+fi
+mkcert -install
+
+generate_cert() {
+    local domains=("$@")
+    echo "${domains[@]}"
+    mkcert -key-file "$SSL_SOURCE_PATH/key.pem" -cert-file "$SSL_SOURCE_PATH/cert.pem" "${domains[@]}"
+}
+
+
+
+copy_certs() {
+    local dest_paths=("$@")
+    local src_key="${SSL_SOURCE_PATH}/key.pem"
+    local src_cert="${SSL_SOURCE_PATH}/cert.pem"
+    for dest in "${dest_paths[@]}"; do
+        echo $dest
+        cp "$src_key" "$dest/key.pem"
+        cp "$src_cert" "$dest/cert.pem"
+    done
+}
+
+

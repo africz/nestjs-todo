@@ -1,0 +1,1 @@
+mysqldump -uroot -hlocalhost -P3306 -proot --databases logoartist | ssh root@host2.mflenses.com 'cat - | mysql -u root -pTokFules1974'

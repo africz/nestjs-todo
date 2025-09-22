@@ -1,0 +1,16 @@
+
+services:
+  mailbox:
+    container_name: mailbox
+    profiles:
+    - backend
+    - all
+    - mailbox
+    image: ${PROJECT_NAME}-${CONFIG_SYSTEM}-mailbox-${VERSION}:latest
+    build: .
+    platform: linux/amd64
+    ports:
+      - 1080:1080
+    networks:
+      - proxy
+      - host_network

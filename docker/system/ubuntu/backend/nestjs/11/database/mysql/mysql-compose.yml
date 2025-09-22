@@ -1,0 +1,2 @@
+include:
+ - ../../../../../tools/nestjs-be/database/mysql/mysql-micro-compose.yml

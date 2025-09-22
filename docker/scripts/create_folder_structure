@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# Root folder config variable
+ROOT_FOLDER="/Volumes/projects/senderis/multi-template"
+
+# Function to create folder structure from a GitHub repo
+# Usage: create_folder_structure <github_repo> <new_folder>
+create_folder_structure() {
+	local github_repo="$1"
+	local new_folder="$2"
+
+	# Clone the repo shallowly
+	git clone --depth 1 "git@github.com:africz/${github_repo}.git" temp_repo
+	# Copy only the folder structure (directories, not files)
+	mkdir -p "$ROOT_FOLDER/$new_folder"
+	cp -Rf temp_repo/. "$ROOT_FOLDER/$new_folder/"
+	rm -rf temp_repo
+	echo "Folder structure from $github_repo copied to $new_folder."
+}
+
+create_folder_structure "mt-backend-laravel-11" "backend/laravel/11"
+create_folder_structure "mt-backend-laravel-12" "backend/laravel/12"
+create_folder_structure "mt-backend-symfony-7.2" "backend/symfony/7.2"
+create_folder_structure "mt-frontend-react-18.2.0" "frontend/react/18.2.0"
+create_folder_structure "mt-frontend-react-18.3.1" "frontend/react/18.3.1"
+create_folder_structure "mt-frontend-react-19.1.0" "frontend/react/19.1.0"
+create_folder_structure "mt-frontend-vue-3" "frontend/vue/3"
+create_folder_structure "mt-monolithic-apiplatform" "monolithic/apiplatform"
+create_folder_structure "mt-monolithic-filament-3" "monolithic/filament/3"
+create_folder_structure "mt-monolithic-laravel-12" "monolithic/laravel/12"
+create_folder_structure "mt-monolithic-livewire-3" "monolithic/livewire/3"
+create_folder_structure "mt-monolithic-multidb-laravel" "monolithic/multidb/laravel"
+create_folder_structure "mt-monolithic-multidb-symfony" "monolithic/multidb/symfony"
+create_folder_structure "mt-monolithic-symfony-7.2" "monolithic/symfony/7.2"
+create_folder_structure "mt-monolithic-volt-1.7.0" "monolithic/volt/1.7.0"
+create_folder_structure "mt-monolithic-wordpress" "monolithic/wordpress"
+create_folder_structure "mt-docker" "docker"
+create_folder_structure "docker" "mt-docker" "docker"
+
+echo "Folder structure created."

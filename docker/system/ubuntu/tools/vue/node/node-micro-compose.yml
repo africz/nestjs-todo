@@ -1,0 +1,28 @@
+
+services:
+  vue-node:
+    container_name: vue-node
+    profiles:
+    - tools
+    - all
+    - vue-node
+    image: ${PROJECT_NAME}-${CONFIG_SYSTEM}-micro-${CONFIG_FRONTEND}-${CONFIG_FRONTEND_VERSION}-vue-node-${VERSION}:latest
+    build: .
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.vue-node.rule=Host(`vue-node-${DOMAIN}`)
+      - traefik.http.routers.vue-node.tls=${DOCKER_STACK_SSL}
+      - traefik.http.services.vue-node.loadbalancer.server.port=80
+    volumes:
+      - ${PROJECT_PATH}/frontend/${CONFIG_FRONTEND}/${CONFIG_FRONTEND_VERSION}:/var/www/html:consistent
+    environment:
+      NODE_ENV: development
+    tty: true
+    #command: /bin/bash
+    command: npm run dev
+    #command: npm run --prefix /var/www/html dev
+    networks:
+      - proxy
+      - host_network
+  

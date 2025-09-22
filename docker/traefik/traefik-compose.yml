@@ -1,0 +1,29 @@
+services:
+  traefik:
+    container_name: traefik
+    image: ${PROJECT_NAME}-traefik-${VERSION}:latest
+    build: .
+    restart: unless-stopped
+    networks:
+      - proxy
+    # Enables the web UI and tells Traefik to listen to docker
+    command:
+      - "--log.level=DEBUG"
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy      
+    ports:
+      - "80:80"
+      - "8080:8080"
+      - "443:443"
+    volumes:
+      # So that Traefik can listen to the Docker events
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./config:/root/.config
+networks:
+  proxy:
+    external: true

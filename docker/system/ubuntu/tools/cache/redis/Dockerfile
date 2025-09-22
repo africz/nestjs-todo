@@ -1,0 +1,4 @@
+FROM redis
+LABEL version=${VERSION}
+
+EXPOSE 6379

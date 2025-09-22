@@ -1,0 +1,37 @@
+
+#!/bin/bash
+source ../../../../../.env
+
+source "$PROJECT_PATH/docker/traefik/certgen"
+# Example usage: call central certgen
+DOMAINS=(
+    "nestjs-be-node-${DOMAIN}"
+    "nestjs-fe-node-${DOMAIN}"
+    "nestjs-be-${DOMAIN}"
+    "nestjs-fe-${DOMAIN}"
+)
+
+FOLDERS=(
+# "${PROJECT_PATH}/docker/system/${CONFIG_SYSTEM}/tools/webserver/apache/ssl"
+# "${PROJECT_PATH}/docker/system/${CONFIG_SYSTEM}/tools/webserver/nginx/ssl"
+
+# "${PROJECT_PATH}/docker/system/${CONFIG_SYSTEM}/tools/react/webserver/apache/ssl"
+# "${PROJECT_PATH}/docker/system/${CONFIG_SYSTEM}/tools/react/webserver/nginx/ssl"
+
+# "${PROJECT_PATH}/docker/system/${CONFIG_SYSTEM}/tools/laravel/webserver/apache/ssl"
+# "${PROJECT_PATH}/docker/system/${CONFIG_SYSTEM}/tools/laravel/webserver/nginx/ssl"
+
+
+"${PROJECT_PATH}/docker/system/${CONFIG_SYSTEM}/tools/nestjs-be/webserver/apache/ssl"
+"${PROJECT_PATH}/docker/system/${CONFIG_SYSTEM}/tools/nestjs-be/webserver/nginx/ssl"
+
+"${PROJECT_PATH}/docker/system/${CONFIG_SYSTEM}/tools/nestjs-fe/webserver/apache/ssl"
+"${PROJECT_PATH}/docker/system/${CONFIG_SYSTEM}/tools/nestjs-fe/webserver/nginx/ssl"
+
+
+)
+
+generate_cert "${DOMAINS[@]}"
+copy_certs "${FOLDERS[@]}"
+
+

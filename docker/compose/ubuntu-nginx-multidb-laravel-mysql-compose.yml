@@ -1,0 +1,25 @@
+
+#include common services here
+include:
+  - ../system/${CONFIG_SYSTEM}/tools/mailbox/mailbox-compose.yml
+  - ../system/${CONFIG_SYSTEM}/tools/cache/redis/redis-compose.yml
+  - ../system/${CONFIG_SYSTEM}/tools/cache/redis-commander/redis-commander-compose.yml
+  - ../system/${CONFIG_SYSTEM}/monolithic/${CONFIG_MONOLITHIC}/${CONFIG_MONOLITHIC_VERSION}/php/8.3/php-compose.yml
+  - ../system/${CONFIG_SYSTEM}/monolithic/${CONFIG_MONOLITHIC}/${CONFIG_MONOLITHIC_VERSION}/database/mysql/mysql-compose.yml
+  - ../system/${CONFIG_SYSTEM}/monolithic/${CONFIG_MONOLITHIC}/${CONFIG_MONOLITHIC_VERSION}/webserver/nginx/nginx-compose.yml
+  - ../system/${CONFIG_SYSTEM}/monolithic/${CONFIG_MONOLITHIC}/${CONFIG_MONOLITHIC_VERSION}/node/node-compose.yml
+  - ../system/${CONFIG_SYSTEM}/monolithic/${CONFIG_MONOLITHIC}/${CONFIG_MONOLITHIC_VERSION}/database/clickhouse/clickhouse-compose.yml
+  - ../system/${CONFIG_SYSTEM}/monolithic/${CONFIG_MONOLITHIC}/${CONFIG_MONOLITHIC_VERSION}/database/postgres/postgres-compose.yml
+  - ../system/${CONFIG_SYSTEM}/monolithic/${CONFIG_MONOLITHIC}/${CONFIG_MONOLITHIC_VERSION}/database/mongodb/mongodb-compose.yml
+  - ../traefik/traefik-compose.yml
+networks:
+  host_network:
+    driver: bridge
+  proxy:
+    external: true
+volumes:
+  multi-template-ubuntu-mono-multidb-laravel-mysql-db:
+  multi-template-ubuntu-mono-multidb-laravel-postgres-db:
+  multi-template-ubuntu-mono-multidb-laravel-mongodb-db:
+  multi-template-ubuntu-mono-multidb-laravel-clickhouse-db:
+  multi-template-ubuntu-mono-multidb-laravel-clickhouse-log:

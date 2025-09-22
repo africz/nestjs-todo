@@ -1,0 +1,32 @@
+services:
+  apache:
+    container_name: apache
+    profiles:
+    - backend
+    - all
+    - apache
+    image: ${PROJECT_NAME}-${CONFIG_SYSTEM}-apache-${VERSION}:latest
+    build: .
+    env_file:
+      - ${PROJECT_PATH}/docker/.env
+    environment:
+      - DOMAIN=${DOMAIN}  
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.backend.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.backend.tls=${DOCKER_STACK_SSL}
+    depends_on:
+      - php 
+      - traefik
+    volumes:
+      - ${PROJECT_PATH}/backend/${CONFIG_BACKEND}:/var/www/html:delegated
+    networks:
+      - proxy
+      - host_network
+    #tty need for error log to standard error
+    tty: true
+    #command: /bin/bash
+    #command: /entrypoint.sh only for apache, nginx require nothing
+    command: /entrypoint.sh
+

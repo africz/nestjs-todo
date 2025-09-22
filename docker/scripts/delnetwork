@@ -1,0 +1,5 @@
+if (( $# == 0 )); then
+    echo "Network name is mandatory parameter!"
+else
+    docker network rm $1 
+fi

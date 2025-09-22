@@ -1,0 +1,2 @@
+include:
+ - ../../../../tools/nestjs-be/node/node-micro-compose.yml

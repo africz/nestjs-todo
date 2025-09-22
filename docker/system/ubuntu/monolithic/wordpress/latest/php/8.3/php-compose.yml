@@ -1,0 +1,2 @@
+include:
+ - ../../../../../tools/wordpress/php/8.3/php-mono-compose.yml

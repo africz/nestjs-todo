@@ -1,0 +1,23 @@
+services:
+  mongodb:
+    container_name: mongodb
+    profiles:
+    - backend
+    - all
+    - mongodb
+    image: ${PROJECT_NAME}-${CONFIG_SYSTEM}-${CONFIG_MONOLITHIC}-${CONFIG_MONOLITHIC_VERSION}-mongodb-${VERSION}:latest
+    build: ../../../../../tools/database/mongodb
+    restart: no
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${PROJECT_NAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${PROJECT_NAME}
+      TZ: UTC
+    tty: true
+    #command: /bin/bash
+    ports:
+      - "27017:27017"
+    volumes:
+      - ${PROJECT_NAME}-${CONFIG_SYSTEM}-mono-${CONFIG_MONOLITHIC}-${CONFIG_MONOLITHIC_VERSION}-mongodb-db:/data/db
+    networks:
+      - proxy
+      - host_network

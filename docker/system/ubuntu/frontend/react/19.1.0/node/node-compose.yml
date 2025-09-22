@@ -1,0 +1,2 @@
+include:
+ - ../../../../tools/react/node/node-micro-compose.yml

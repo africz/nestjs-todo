@@ -1,0 +1,591 @@
+#!/bin/bash
+# This script clones the $PROJECT_NAME repository and its submodules into a specified directory.
+# Usage: ./clone.sh <source directory> [stack]
+# Supported stacks: react-laravel, vue-laravel, nestjs, laravel-mono, wp
+# 
+# Example for NestJS:
+# ./clone /Volumes/Projects/mt-docker nestjs
+# 
+# The script will:
+# 1. Clone the required repositories for the specified stack
+# 2. Replace placeholder domains in nginx configs using replace_domain_in_nginx_conf()
+# 3. Set up environment variables for the stack
+# 4. Initialize a git repository in the project path
+# 5. Run the appropriate make setup command
+#
+# For domain replacement, the function supports multiple placeholder variants:
+# - Plain text: multi-template.localhost
+# - Escaped regex: multi-template\.localhost 
+# - Other escaped forms are automatically handled
+if [ ! -f "$1/.env" ]; then
+    echo "Warning: .env file not found in '$1'."
+    echo "You must set PROJECT_NAME and PROJECT_PATH in the .env file before proceeding."
+    exit 1
+fi
+# Export all variables from $1/.env
+set -a
+. "$1/.env"
+set +a
+
+# Check if the correct number of arguments is provided
+if [ $# -lt 1 ]; then
+    echo "Usage: ./clone.sh <source directory> [react|laravel|wp]"
+    exit 1
+fi
+# Check if the second argument (stack) is provided
+if [ $# -lt 2 ]; then
+    echo "Usage: ./clone.sh <source directory> [react|laravel|wp]"
+    exit 1
+fi
+# Check if Docker Desktop is running
+if ! docker info >/dev/null 2>&1; then
+    echo "Error: Docker Desktop is not running. Please start Docker Desktop and try again."
+    exit 1
+fi
+
+
+echo "PROJECT_NAME:$PROJECT_NAME and PROJECT_PATH:$PROJECT_PATH are set in '$1/.env'."
+read -p "Continue with these settings? (y/n): " confirm
+if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+    echo "Aborted by user."
+    exit 1
+fi
+
+if [ ! -d "$1" ] || [ ! -w "$1" ]; then
+    echo "Error: Source directory '$1' does not exist or is not writable."
+    exit 1
+fi
+
+
+
+echo "Using PROJECT_NAME: $PROJECT_NAME"
+# Create the directory structure
+if [ -d "$PROJECT_PATH" ]; then
+    echo "Directory $1/$PROJECT_NAME already exists, exit..."
+    exit 1
+else
+    echo "Creating directory $PROJECT_PATH..."
+fi
+
+mkdir -p "$PROJECT_PATH" || exit
+
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to create directory $PROJECT_PATH"
+    exit 1
+fi
+
+cd "$PROJECT_PATH" || exit
+
+
+clone() {
+    local src_dir="$1"
+    local target_dir="$2"
+    local repository="$3"
+
+    echo "Cloning multi-template repository..."
+    echo "Cloning multi-template/$repository repository..."
+    if [ -d "$target_dir" ]; then
+        echo "$src_directory already exists at $target_dir, skipping clone."
+        return
+    fi
+    git clone git@github.com:africz/$repository "$target_dir"
+    if [ $? -ne 0 ]; then
+        echo "Error: Failed to clone $repository repository"
+        exit 1
+    fi
+    echo "Successfully cloned $repository repository to $target_dir" 
+}
+
+replace_volume_name_in_compose() {
+    # Replace 'multi-template' with the actual project name in the compose file
+    COMPOSE_FILE="$PROJECT_PATH/docker/compose/$1"
+    if [ -f "$COMPOSE_FILE" ]; then
+        if grep -q "multi-template" "$COMPOSE_FILE"; then
+            # Use portable sed for both GNU and BSD/macOS
+            if sed --version >/dev/null 2>&1; then
+                sed -i.bak "s/multi-template/${PROJECT_NAME//\//\\/}/g" "$COMPOSE_FILE"
+            else
+                sed -i '' "s/multi-template/${PROJECT_NAME//\//\\/}/g" "$COMPOSE_FILE"
+            fi
+            echo "Replaced 'multi-template' with '$PROJECT_NAME' in $COMPOSE_FILE"
+        else
+            echo "No occurrences of 'multi-template' found in $COMPOSE_FILE, nothing replaced."
+        fi
+    else
+        echo "Warning: $COMPOSE_FILE not found, skipping replacement."
+    fi
+}
+
+replace_domain_in_nginx_conf() {
+    # Usage: replace_domain_in_nginx_conf <nginx_conf_file> [placeholder]
+    # If placeholder is omitted, defaults to 'multi-template.localhost'
+    local nginx_conf_file="$1"
+    local placeholder_raw="${2:-multi-template.localhost}"
+    # Escape dots and other sed-special chars in placeholder for safe grep/sed
+    local placeholder_escaped
+    placeholder_escaped=$(printf '%s' "$placeholder_raw" | sed -e 's/[.[\*^$/]/\\&/g')
+
+    echo "Replacing domain in Nginx config: $nginx_conf_file (searching for: $placeholder_raw)"
+    if [ -f "$nginx_conf_file" ]; then
+        # Build candidate placeholder variants to match files that use regex escapes or plain text
+        placeholder_variants=()
+        placeholder_variants+=("$placeholder_raw")
+        # escaped dots (e.g. replace '.' with '\\.') if not already
+        placeholder_variants+=("$(printf '%s' "$placeholder_raw" | sed -e 's/\./\\\\./g')")
+        # unescape literal backslashes (remove '\\')
+        placeholder_variants+=("$(printf '%s' "$placeholder_raw" | sed -e 's/\\\\\.//g')")
+
+        found_variant=""
+        for var in "${placeholder_variants[@]}"; do
+            if grep -Fq "$var" "$nginx_conf_file"; then
+                found_variant="$var"
+                break
+            fi
+        done
+
+        if [ -n "$found_variant" ]; then
+            # Prefer perl for safe literal replacements (handles metacharacters and backslashes)
+            if command -v perl >/dev/null 2>&1; then
+                cp "$nginx_conf_file" "$nginx_conf_file.bak"
+                perl -0777 -pe 'BEGIN{$old=shift; $new=shift} s/\Q$old\E/$new/g' "$found_variant" "$DOMAIN" "$nginx_conf_file" > "$nginx_conf_file.tmp" && mv "$nginx_conf_file.tmp" "$nginx_conf_file"
+                echo "Replaced '${found_variant}' with '${DOMAIN}' in $nginx_conf_file (using perl)"
+            else
+                # Fallback to sed: escape delimiter and backslashes
+                cp "$nginx_conf_file" "$nginx_conf_file.bak"
+                esc_old=$(printf '%s' "$found_variant" | sed -e 's/[\/&]/\\&/g')
+                esc_new=$(printf '%s' "$DOMAIN" | sed -e 's/[\/&]/\\&/g')
+                if sed --version >/dev/null 2>&1; then
+                    sed -i.bak "s/${esc_old}/${esc_new}/g" "$nginx_conf_file"
+                else
+                    sed -i '' "s/${esc_old}/${esc_new}/g" "$nginx_conf_file"
+                fi
+                echo "Replaced '${found_variant}' with '${DOMAIN}' in $nginx_conf_file (using sed)"
+            fi
+        else
+            echo "No occurrences of any placeholder variants found in $nginx_conf_file, nothing replaced."
+        fi
+    else
+        echo "Warning: $nginx_conf_file not found, skipping replacement."
+    fi
+
+}
+
+set_laravel_env() {
+    local env_subpath="$3"
+    if [ -z "$env_subpath" ]; then
+        echo "Error: env_subpath is not set. Please provide the environment subpath."
+        exit 1
+    fi
+
+    if [ "$env_subpath" = "monolithic" ]; then
+        if [ -z "$CONFIG_MONOLITHIC_VERSION" ]; then
+            echo "Error: CONFIG_MONOLITHIC_VERSION is not set. Please export CONFIG_MONOLITHIC_VERSION before running this script."
+            exit 1
+        fi
+        if [ -z "$CONFIG_MONOLITHIC" ]; then
+            echo "Error: CONFIG_MONOLITHIC is not set. Please export CONFIG_MONOLITHIC before running this script."
+            exit 1
+        fi
+        env_subpath="$env_subpath/$CONFIG_MONOLITHIC/$CONFIG_MONOLITHIC_VERSION"
+    else
+        if [ -z "$CONFIG_BACKEND_VERSION" ]; then
+            echo "Error: CONFIG_BACKEND_VERSION is not set. Please export CONFIG_BACKEND_VERSION before running this script."
+            exit 1
+        fi
+        if [ -z "$CONFIG_BACKEND" ]; then
+            echo "Error: CONFIG_BACKEND is not set. Please export CONFIG_BACKEND before running this script."
+            exit 1
+        fi
+        env_subpath="backend/$CONFIG_BACKEND/$CONFIG_BACKEND_VERSION"
+    fi
+
+
+
+    echo "=== Setting up Laravel environment ==="
+    echo "FROM: $1"
+    echo "TO: $2"
+    echo "Using PROJECT_PATH: $PROJECT_PATH"
+    if [ -z "$1" ]; then
+        echo "Error: FROM is not set. Please provide the source key."
+        exit 1
+    fi
+    if [ -z "$2" ]; then
+        echo "Error: TO is not set. Please provide the destination key."
+        exit 1
+    fi
+    if [ -z "$PROJECT_PATH" ]; then
+        echo "Error: PROJECT_PATH is not set. Please export PROJECT_PATH before running this script."
+        exit 1
+    fi
+    
+    ENV_FILE="$PROJECT_PATH/$env_subpath/.env"
+    if [ ! -f "$ENV_FILE" ]; then
+        if [ -f "$ENV_FILE.example" ]; then
+            cp "$ENV_FILE.example" "$ENV_FILE"
+        else
+            echo "Warning: $ENV_FILE and $ENV_FILE.example not found, skipping Laravel setup."
+            exit 0
+        fi
+    fi
+    echo "Using env file: $ENV_FILE"
+
+    # Split key and value for search and replace
+    FROM_KEY="${1%%=*}"
+    FROM_VALUE="${1#*=}"
+    TO_KEY="${2%%=*}"
+    TO_VALUE="${2#*=}"
+
+    # Use awk for reliable in-place replacement
+    awk -v from_key="$FROM_KEY" -v to_key="$TO_KEY" -v to_value="$TO_VALUE" '
+    BEGIN { changed=0 }
+    {
+        if ($0 ~ "^"from_key"=") {
+            print to_key"="to_value
+            changed=1
+        } else {
+            print $0
+        }
+    }
+    END {
+        if (!changed) {
+            # Optionally, append if not found
+            print to_key"="to_value
+        }
+    }
+    ' "$ENV_FILE" > "$ENV_FILE.tmp" && mv "$ENV_FILE.tmp" "$ENV_FILE"
+
+    if grep -q "^$TO_KEY=$TO_VALUE" "$ENV_FILE"; then
+        echo "Replaced '$FROM_KEY' value with '$TO_VALUE' in $ENV_FILE"
+    else
+        echo "No occurrences of '$FROM_KEY' found in $ENV_FILE, nothing replaced."
+    fi
+}
+
+set_nestjs_env() {
+    local env_subpath="$3"
+    if [ -z "$env_subpath" ]; then
+        echo "Error: env_subpath is not set. Please provide the environment subpath."
+        exit 1
+    fi
+
+    if [ "$env_subpath" = "frontend" ]; then
+        if [ -z "$CONFIG_FRONTEND_VERSION" ]; then
+            echo "Error: CONFIG_FRONTEND_VERSION is not set. Please export CONFIG_FRONTEND_VERSION before running this script."
+            exit 1
+        fi
+        if [ -z "$CONFIG_FRONTEND" ]; then
+            echo "Error: CONFIG_FRONTEND is not set. Please export CONFIG_FRONTEND before running this script."
+            exit 1
+        fi
+        env_subpath="frontend/$CONFIG_FRONTEND/$CONFIG_FRONTEND_VERSION"
+    else
+        if [ -z "$CONFIG_BACKEND_VERSION" ]; then
+            echo "Error: CONFIG_BACKEND_VERSION is not set. Please export CONFIG_BACKEND_VERSION before running this script."
+            exit 1
+        fi
+        if [ -z "$CONFIG_BACKEND" ]; then
+            echo "Error: CONFIG_BACKEND is not set. Please export CONFIG_BACKEND before running this script."
+            exit 1
+        fi
+        env_subpath="backend/$CONFIG_BACKEND/$CONFIG_BACKEND_VERSION"
+    fi
+
+    echo "=== Setting up NestJS environment ==="
+    echo "FROM: $1"
+    echo "TO: $2"
+    echo "Using PROJECT_PATH: $PROJECT_PATH"
+    if [ -z "$1" ]; then
+        echo "Error: FROM is not set. Please provide the source key."
+        exit 1
+    fi
+    if [ -z "$2" ]; then
+        echo "Error: TO is not set. Please provide the destination key."
+        exit 1
+    fi
+    if [ -z "$PROJECT_PATH" ]; then
+        echo "Error: PROJECT_PATH is not set. Please export PROJECT_PATH before running this script."
+        exit 1
+    fi
+    
+    ENV_FILE="$PROJECT_PATH/$env_subpath/.env"
+    if [ ! -f "$ENV_FILE" ]; then
+        if [ -f "$ENV_FILE.example" ]; then
+            cp "$ENV_FILE.example" "$ENV_FILE"
+        else
+            echo "Info: $ENV_FILE and $ENV_FILE.example not found. NestJS can work without .env files."
+            echo "Skipping environment variable setup for $env_subpath"
+            return 0
+        fi
+    fi
+    echo "Using env file: $ENV_FILE"
+
+    # Split key and value for search and replace
+    FROM_KEY="${1%%=*}"
+    FROM_VALUE="${1#*=}"
+    TO_KEY="${2%%=*}"
+    TO_VALUE="${2#*=}"
+
+    # Use awk for reliable in-place replacement
+    awk -v from_key="$FROM_KEY" -v to_key="$TO_KEY" -v to_value="$TO_VALUE" '
+    BEGIN { changed=0 }
+    {
+        if ($0 ~ "^"from_key"=") {
+            print to_key"="to_value
+            changed=1
+        } else {
+            print $0
+        }
+    }
+    END {
+        if (!changed) {
+            # Optionally, append if not found
+            print to_key"="to_value
+        }
+    }
+    ' "$ENV_FILE" > "$ENV_FILE.tmp" && mv "$ENV_FILE.tmp" "$ENV_FILE"
+
+    if grep -q "^$TO_KEY=$TO_VALUE" "$ENV_FILE"; then
+        echo "Replaced '$FROM_KEY' value with '$TO_VALUE' in $ENV_FILE"
+    else
+        echo "No occurrences of '$FROM_KEY' found in $ENV_FILE, nothing replaced."
+    fi
+}
+
+replace_nginx_server_name() {
+    local nginx_conf_file="$1"
+    local service_name="$2"  # "nestjs-be" or "nestjs-fe"
+    
+    if [ -z "$nginx_conf_file" ]; then
+        echo "Error: nginx_conf_file is not set. Please provide the nginx config file path."
+        return 1
+    fi
+    
+    if [ -z "$service_name" ]; then
+        echo "Error: service_name is not set. Please provide service name (nestjs-be or nestjs-fe)."
+        return 1
+    fi
+    
+    if [ -z "$DOMAIN" ]; then
+        echo "Error: DOMAIN is not set. Please ensure DOMAIN is exported."
+        return 1
+    fi
+    
+    if [ -f "$nginx_conf_file" ]; then
+        # Create backup
+        cp "$nginx_conf_file" "$nginx_conf_file.bak"
+        
+        # Replace server_name _ with the specific domain
+        local new_server_name="${service_name}-${DOMAIN}"
+        
+        # Use sed to replace all occurrences of "server_name _;" with the new domain
+        if sed --version >/dev/null 2>&1; then
+            # GNU sed (Linux)
+            sed -i "s/server_name _;/server_name ${new_server_name};/g" "$nginx_conf_file"
+        else
+            # BSD sed (macOS)
+            sed -i '' "s/server_name _;/server_name ${new_server_name};/g" "$nginx_conf_file"
+        fi
+        
+        echo "Replaced 'server_name _;' with 'server_name ${new_server_name};' in $nginx_conf_file"
+    else
+        echo "Warning: $nginx_conf_file not found, skipping server name replacement."
+    fi
+}
+
+clone_react_laravel() {
+    clone "$1/$PROJECT_NAME/mt-docker" "$PROJECT_PATH/docker" mt-docker.git
+    
+    clone "$1/$PROJECT_NAME/mt-backend-laravel-$CONFIG_BACKEND_VERSION" "$PROJECT_PATH/backend/laravel/$CONFIG_BACKEND_VERSION" mt-backend-laravel-$CONFIG_BACKEND_VERSION.git
+    clone "$1/$PROJECT_NAME/mt-frontend-react-$CONFIG_FRONTEND_VERSION" "$PROJECT_PATH/frontend/react/$CONFIG_FRONTEND_VERSION" mt-frontend-react-$CONFIG_FRONTEND_VERSION.git
+
+    replace_volume_name_in_compose ubuntu-nginx-react-$CONFIG_FRONTEND_VERSION-laravel-$CONFIG_BACKEND_VERSION-mysql-compose.yml
+    replace_domain_in_nginx_conf "$PROJECT_PATH/docker/system/$CONFIG_SYSTEM/tools/laravel/webserver/nginx/conf/default.conf" "laravel-multi-template\\.localhost"
+    replace_domain_in_nginx_conf "$PROJECT_PATH/docker/system/$CONFIG_SYSTEM/tools/laravel/webserver/nginx/conf/default.conf" "laravel-node-multi-template\\.localhost"
+    echo "Setting up Laravel environment variables..."
+    set_laravel_env APP_URL=http://localhost APP_URL=http://laravel-${PROJECT_NAME}.localhost backend
+    set_laravel_env APP_NAME=Laravel APP_NAME=${PROJECT_NAME}  backend
+    set_laravel_env DB_HOST=127.0.0.1 DB_HOST=mysql backend
+    set_laravel_env DB_DATABASE=multi_template DB_DATABASE=${PROJECT_NAME} backend
+    set_laravel_env DB_USERNAME=root DB_USERNAME=${PROJECT_NAME} backend
+    set_laravel_env DB_PASSWORD= DB_PASSWORD=${PROJECT_NAME} backend
+    set_laravel_env REDIS_HOST=127.0.0.1 REDIS_HOST=redis backend
+    set_laravel_env MAIL_HOST=127.0.0.1 MAIL_HOST=mailbox backend
+    set_laravel_env MAIL_PORT=1025 MAIL_PORT=1025 backend
+    set_laravel_env MAIL_FROM_ADDRESS="info@example.com" MAIL_FROM_ADDRESS="info@${PROJECT_NAME}.localhost" backend
+    set_laravel_env VITE_ORIGIN="https://laravel-node-multi-template.localhost:80" VITE_ORIGIN="https://laravel-node-${PROJECT_NAME}.localhost:80" backend
+    set_laravel_env VITE_HMR_PROTOCOL=ws VITE_HMR_PROTOCOL=ws backend
+    set_laravel_env VITE_HMR_HOST=laravel-node-multi-template.localhost VITE_HMR_HOST=laravel-node-${PROJECT_NAME}.localhost backend
+    set_laravel_env VITE_HMR_PORT=80 VITE_HMR_PORT=80 backend
+    set_laravel_env VITE_HMR_CLIENT_PORT=80 VITE_HMR_CLIENT_PORT=80 backend
+    set_laravel_env VITE_DEV_PORT=80 VITE_DEV_PORT=80 backend
+    # remove git directory
+    rm -rf "$PROJECT_PATH/frontend/react/$CONFIG_FRONTEND_VERSION/.git"
+    rm -rf "$PROJECT_PATH/backend/laravel/$CONFIG_BACKEND_VERSION/.git"
+    rm -rf "$PROJECT_PATH/docker/.git"
+    echo "Removing git directories..."
+    echo "React stack cloned successfully."
+}
+
+clone_vue_laravel() {
+    clone "$1/$PROJECT_NAME/mt-docker" "$PROJECT_PATH/docker" mt-docker.git
+    
+    clone "$1/$PROJECT_NAME/mt-backend-laravel-$CONFIG_BACKEND_VERSION" "$PROJECT_PATH/backend/laravel/$CONFIG_BACKEND_VERSION" mt-backend-laravel-$CONFIG_BACKEND_VERSION.git
+    clone "$1/$PROJECT_NAME/mt-frontend-vue-$CONFIG_FRONTEND_VERSION" "$PROJECT_PATH/frontend/vue/$CONFIG_FRONTEND_VERSION" mt-frontend-vue-$CONFIG_FRONTEND_VERSION.git
+
+    replace_volume_name_in_compose ubuntu-nginx-vue-$CONFIG_FRONTEND_VERSION-laravel-$CONFIG_BACKEND_VERSION-mysql-compose.yml
+    replace_domain_in_nginx_conf "$PROJECT_PATH/docker/system/$CONFIG_SYSTEM/tools/laravel/webserver/nginx/conf/default.conf" "laravel-multi-template\\.localhost"
+    replace_domain_in_nginx_conf "$PROJECT_PATH/docker/system/$CONFIG_SYSTEM/tools/laravel/webserver/nginx/conf/default.conf" "laravel-node-multi-template\\.localhost"
+    echo "Setting up Laravel environment variables..."
+    set_laravel_env APP_URL=http://localhost APP_URL=http://laravel-${PROJECT_NAME}.localhost backend
+    set_laravel_env APP_NAME=Laravel APP_NAME=${PROJECT_NAME}  backend
+    set_laravel_env DB_HOST=127.0.0.1 DB_HOST=mysql backend
+    set_laravel_env DB_DATABASE=multi_template DB_DATABASE=${PROJECT_NAME} backend
+    set_laravel_env DB_USERNAME=root DB_USERNAME=${PROJECT_NAME} backend
+    set_laravel_env DB_PASSWORD= DB_PASSWORD=${PROJECT_NAME} backend
+    set_laravel_env REDIS_HOST=127.0.0.1 REDIS_HOST=redis backend
+    set_laravel_env MAIL_HOST=127.0.0.1 MAIL_HOST=mailbox backend
+    set_laravel_env MAIL_PORT=1025 MAIL_PORT=1025 backend
+    set_laravel_env MAIL_FROM_ADDRESS="info@example.com" MAIL_FROM_ADDRESS="info@${PROJECT_NAME}.localhost" backend
+    set_laravel_env VITE_ORIGIN="https://laravel-node-multi-template.localhost:80" VITE_ORIGIN="https://laravel-node-${PROJECT_NAME}.localhost:80" backend
+    set_laravel_env VITE_HMR_PROTOCOL=ws VITE_HMR_PROTOCOL=ws backend
+    set_laravel_env VITE_HMR_HOST=laravel-node-multi-template.localhost VITE_HMR_HOST=laravel-node-${PROJECT_NAME}.localhost backend
+    set_laravel_env VITE_HMR_PORT=80 VITE_HMR_PORT=80 backend
+    set_laravel_env VITE_HMR_CLIENT_PORT=80 VITE_HMR_CLIENT_PORT=80 backend
+    set_laravel_env VITE_DEV_PORT=80 VITE_DEV_PORT=80 backend
+   
+    # remove git directory
+    rm -rf "$PROJECT_PATH/frontend/vue/$CONFIG_FRONTEND_VERSION/.git"
+    rm -rf "$PROJECT_PATH/backend/laravel/$CONFIG_BACKEND_VERSION/.git"
+    rm -rf "$PROJECT_PATH/docker/.git"
+    echo "Removing git directories..."
+    echo "Vue stack cloned successfully."
+}
+
+clone_laravel_mono() {
+    clone "$1/$PROJECT_NAME/mt-docker" "$PROJECT_PATH/docker" mt-docker.git
+    clone "$1/$PROJECT_NAME/mt-mono-laravel-12" "$PROJECT_PATH/monolithic/laravel/12" mt-mono-laravel-12.git
+    replace_volume_name_in_compose ubuntu-nginx-laravel-12-mysql-compose.yml
+    echo "Setting up Laravel environment variables..."
+    set_laravel_env APP_URL=http://localhost APP_URL=http://laravel-${PROJECT_NAME}.localhost monolithic
+    set_laravel_env APP_NAME=Laravel APP_NAME=${PROJECT_NAME} monolithic
+    set_laravel_env DB_HOST=127.0.0.1 DB_HOST=mysql monolithic
+    set_laravel_env DB_DATABASE=multi_template DB_DATABASE=${PROJECT_NAME} monolithic
+    set_laravel_env DB_USERNAME=root DB_USERNAME=${PROJECT_NAME} monolithic
+    set_laravel_env DB_PASSWORD= DB_PASSWORD=${PROJECT_NAME} monolithic
+    set_laravel_env REDIS_HOST=127.0.0.1 REDIS_HOST=redis monolithic
+    set_laravel_env MAIL_HOST=127.0.0.1 MAIL_HOST=mailbox monolithic
+    set_laravel_env MAIL_PORT=1025 MAIL_PORT=1025 monolithic
+    set_laravel_env MAIL_FROM_ADDRESS="info@example.com" MAIL_FROM_ADDRESS="info@${PROJECT_NAME}.localhost" monolithic
+    # remove git directory
+    rm -rf "$PROJECT_PATH/monolithic/laravel/12/.git"
+    rm -rf "$PROJECT_PATH/docker/.git"
+    echo "Removing git directories..."
+    echo "Laravel mono stack cloned successfully."
+}
+
+clone_wp() {
+    clone "$1/$PROJECT_NAME/mt-docker" "$PROJECT_PATH/docker" mt-docker.git
+    clone "$1/$PROJECT_NAME/mt-mono-wordpress" "$PROJECT_PATH/monolithic/wordpress/latest" mt-mono-wordpress.git
+    replace_volume_name_in_compose ubuntu-nginx-wordpress-latest-mysql-compose.yml
+    # remove git directory
+    rm -rf "$PROJECT_PATH/monolithic/wordpress/latest/.git"
+    rm -rf "$PROJECT_PATH/docker/.git"
+    rm -rf "$PROJECT_PATH/monolithic/wordpress/latest/wp-config.php"
+    echo "Removing git directories..."
+    echo "Removing wp-config.php file..."
+    echo "WordPress stack cloned successfully."
+}
+
+clone_nestjs() {
+    clone "$1/$PROJECT_NAME/mt-docker" "$PROJECT_PATH/docker" mt-docker.git
+    
+    clone "$1/$PROJECT_NAME/mt-backend-nestjs-$CONFIG_BACKEND_VERSION" "$PROJECT_PATH/backend/nestjs/$CONFIG_BACKEND_VERSION" mt-backend-nestjs-$CONFIG_BACKEND_VERSION.git
+    clone "$1/$PROJECT_NAME/mt-frontend-nestjs-$CONFIG_FRONTEND_VERSION" "$PROJECT_PATH/frontend/nestjs/$CONFIG_FRONTEND_VERSION" mt-frontend-nestjs-$CONFIG_FRONTEND_VERSION.git
+
+    replace_volume_name_in_compose ubuntu-nginx-nestjs-$CONFIG_BACKEND_VERSION-nestjs-$CONFIG_FRONTEND_VERSION-mysql-compose.yml
+    replace_domain_in_nginx_conf "$PROJECT_PATH/docker/system/$CONFIG_SYSTEM/tools/nestjs-be/webserver/nginx/conf/default.conf" "nestjs-be-node-multi-template\\.localhost"
+    replace_domain_in_nginx_conf "$PROJECT_PATH/docker/system/$CONFIG_SYSTEM/tools/nestjs-fe/webserver/nginx/conf/default.conf" "nestjs-fe-node-multi-template\\.localhost"
+    
+    # Replace nginx server names with specific domains
+    replace_nginx_server_name "$PROJECT_PATH/docker/system/$CONFIG_SYSTEM/tools/nestjs-be/webserver/nginx/conf/default.conf" "nestjs-be"
+    replace_nginx_server_name "$PROJECT_PATH/docker/system/$CONFIG_SYSTEM/tools/nestjs-fe/webserver/nginx/conf/default.conf" "nestjs-fe"
+    
+    echo "Setting up NestJS environment variables..."
+    # For backend NestJS
+    set_nestjs_env DB_HOST=mysql DB_HOST=mysql backend
+    set_nestjs_env DB_DATABASE=multi_template DB_DATABASE=${PROJECT_NAME} backend
+    set_nestjs_env DB_USERNAME=root DB_USERNAME=${PROJECT_NAME} backend
+    set_nestjs_env DB_PASSWORD= DB_PASSWORD=${PROJECT_NAME} backend
+    set_nestjs_env REDIS_HOST=redis REDIS_HOST=redis backend
+    set_nestjs_env MAIL_HOST=mailbox MAIL_HOST=mailbox backend
+    set_nestjs_env MAIL_PORT=1025 MAIL_PORT=1025 backend
+    set_nestjs_env PORT=80 PORT=80 backend
+    set_nestjs_env NODE_ENV=development NODE_ENV=development backend
+    
+    # For frontend NestJS
+    set_nestjs_env API_URL=http://nestjs-be-node-multi-template.localhost API_URL=http://nestjs-be-node-${PROJECT_NAME}.localhost frontend
+    set_nestjs_env PORT=80 PORT=80 frontend
+    set_nestjs_env NODE_ENV=development NODE_ENV=development frontend
+    
+    # remove git directories
+    rm -rf "$PROJECT_PATH/frontend/nestjs/$CONFIG_FRONTEND_VERSION/.git"
+    rm -rf "$PROJECT_PATH/backend/nestjs/$CONFIG_BACKEND_VERSION/.git"
+    rm -rf "$PROJECT_PATH/docker/.git"
+    echo "Removing git directories..."
+    echo "NestJS stack cloned successfully."
+}
+
+
+if [ "$1" = "help" ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+    echo "Usage: ./clone.sh <directory> [stack]"
+    echo "  <directory>   Source directory to clone repositories from (e.g., /Volumes/Projects/mt-docker)"
+    echo "  [stack]       Optional stack to clone (default: all) e.g., react-laravel, vue-laravel, nestjs, laravel-mono, wp)" 
+    echo "                Supported stacks: react-laravel, vue-laravel, nestjs, laravel-mono, wp"
+    exit 0
+fi
+
+if [ "$2" = "react-laravel" ]; then
+    clone_react_laravel "$1"
+elif [ "$2" = "vue-laravel" ]; then
+    clone_vue_laravel "$1"
+elif [ "$2" = "nestjs" ]; then
+    clone_nestjs "$1"
+elif [ "$2" = "laravel-mono" ]; then
+    clone_laravel_mono "$1"
+elif [ "$2" = "wp" ]; then
+    clone_wp "$1"
+else
+    echo "Error: Unsupported stack '$2'. Supported stacks: react-laravel, vue-laravel, nestjs, laravel-mono, wp."
+    exit 1
+fi
+
+#add git directory to the root of the project
+mkdir -p "$PROJECT_PATH/.git"
+cd "$PROJECT_PATH" || exit
+git init
+git add .
+git commit -m "Initial commit for $PROJECT_NAME"
+echo "Git repository initialized in $PROJECT_PATH"
+echo "Cloning completed successfully."
+cp $1/.env $PROJECT_PATH/docker
+echo "Copied .env file from $1/.env to $PROJECT_PATH/docker"
+echo "You can now run 'make setup' in $PROJECT_PATH/docker to start the project."
+cd "$PROJECT_PATH/docker"
+echo "Running $2 setup in $PROJECT_PATH/docker..."
+if [ "$2" = "react-laravel" ]; then
+    make setup_react_laravel
+elif [ "$2" = "vue-laravel" ]; then
+    make setup_vue_laravel
+elif [ "$2" = "nestjs" ]; then
+    make setup_nestjs
+elif [ "$2" = "laravel-mono" ]; then
+    make setup_laravel_mono
+elif [ "$2" = "wp" ]; then
+    make setup_wp
+else
+    echo "Error: Unsupported stack '$2'. Supported stacks: react-laravel, vue-laravel, nestjs, laravel-mono, wp."
+fi
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to run 'make setup' in $PROJECT_PATH/docker"
+    exit 1
+fi

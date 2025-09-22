@@ -1,0 +1,27 @@
+services:
+  nginx:
+    container_name: nginx
+    profiles:
+    - backend
+    - all
+    - nginx
+    image: ${PROJECT_NAME}-${CONFIG_SYSTEM}-micro-${CONFIG_BACKEND}-${CONFIG_BACKEND_VERSION}-nginx-${VERSION}:latest
+    build: .
+    env_file:
+      - ${PROJECT_PATH}/docker/.env
+    environment:
+      - DOMAIN=${DOMAIN}  
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.backend.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.backend.tls=${DOCKER_STACK_SSL}
+    volumes:
+      - ${PROJECT_PATH}/backend/${CONFIG_BACKEND}/${CONFIG_BACKEND_VERSION}:/var/www/html:consistent
+    networks:
+      - proxy
+      - host_network
+    #tty need for error log to standard error
+    tty: true
+    #command: /bin/bash
+

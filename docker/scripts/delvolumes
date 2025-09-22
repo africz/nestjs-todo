@@ -1,0 +1,6 @@
+if (( $# == 0 )); then
+    echo "Project name is mandatory parameter!"
+else
+    docker volume ls | grep $1 | awk '{print $2}' | xargs docker volume rm
+fi
+

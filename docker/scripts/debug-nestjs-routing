@@ -1,0 +1,106 @@
+#!/bin/bash
+
+# Debug script for NestJS routing issues
+# Usage: ./debug-nestjs-routing
+
+echo "=== NestJS Routing Debug Script ==="
+echo ""
+
+# Check if we're in the right directory
+if [ ! -f ".env" ]; then
+    echo "Error: .env file not found. Please run this script from the docker directory."
+    exit 1
+fi
+
+# Source environment variables
+set -a
+source .env
+set +a
+
+echo "Project: $PROJECT_NAME"
+echo "Domain: $DOMAIN"
+echo ""
+
+echo "=== Expected Service URLs ==="
+echo "Backend (nginx proxy): nestjs-be-$DOMAIN"
+echo "Backend (direct node): nestjs-be-node-$DOMAIN"
+echo "Frontend (nginx proxy): nestjs-fe-$DOMAIN"
+echo "Frontend (direct node): nestjs-fe-node-$DOMAIN"
+echo ""
+
+echo "=== Container Status ==="
+docker ps --filter "name=nestjs" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+echo ""
+
+echo "=== Testing Direct Node Access ==="
+echo "Testing backend node..."
+if curl -s --max-time 5 "http://nestjs-be-node-$DOMAIN/" | grep -q "Backend"; then
+    echo "✅ Backend node returns 'Backend' correctly"
+else
+    echo "❌ Backend node issue - response:"
+    curl -s --max-time 5 "http://nestjs-be-node-$DOMAIN/" || echo "Connection failed"
+fi
+
+echo "Testing frontend node..."
+if curl -s --max-time 5 "http://nestjs-fe-node-$DOMAIN/" | grep -q "Frontend"; then
+    echo "✅ Frontend node returns 'Frontend' correctly"
+else
+    echo "❌ Frontend node issue - response:"
+    curl -s --max-time 5 "http://nestjs-fe-node-$DOMAIN/" || echo "Connection failed"
+fi
+echo ""
+
+echo "=== Testing Nginx Proxy Access ==="
+echo "Testing backend nginx proxy..."
+if curl -s --max-time 5 "http://nestjs-be-$DOMAIN/" | grep -q "Backend"; then
+    echo "✅ Backend nginx proxy returns 'Backend' correctly"
+else
+    echo "❌ Backend nginx proxy issue - response:"
+    curl -s --max-time 5 "http://nestjs-be-$DOMAIN/" || echo "Connection failed"
+fi
+
+echo "Testing frontend nginx proxy..."
+if curl -s --max-time 5 "http://nestjs-fe-$DOMAIN/" | grep -q "Frontend"; then
+    echo "✅ Frontend nginx proxy returns 'Frontend' correctly"
+else
+    echo "❌ Frontend nginx proxy issue - response:"
+    curl -s --max-time 5 "http://nestjs-fe-$DOMAIN/" || echo "Connection failed"
+fi
+echo ""
+
+echo "=== Checking Volume Mounts ==="
+echo "Backend container volume check:"
+docker exec nestjs-be-node ls -la /var/www/html/src/ 2>/dev/null | head -5
+echo ""
+echo "Frontend container volume check:"
+docker exec nestjs-fe-node ls -la /var/www/html/src/ 2>/dev/null | head -5
+echo ""
+
+echo "=== Checking App Service Content ==="
+echo "Backend app.service.ts content:"
+docker exec nestjs-be-node cat /var/www/html/src/app.service.ts 2>/dev/null | grep -A2 -B2 "getHello"
+echo ""
+echo "Frontend app.service.ts content:"
+docker exec nestjs-fe-node cat /var/www/html/src/app.service.ts 2>/dev/null | grep -A2 -B2 "getHello"
+echo ""
+
+echo "=== Traefik Labels Check ==="
+echo "Backend nginx container labels:"
+docker inspect nestjs-be-nginx 2>/dev/null | jq '.[0].Config.Labels' | grep traefik || echo "Container not found"
+echo ""
+echo "Frontend nginx container labels:"
+docker inspect nestjs-fe-nginx 2>/dev/null | jq '.[0].Config.Labels' | grep traefik || echo "Container not found"
+echo ""
+
+echo "=== Recommended Actions ==="
+echo "1. If direct node access works but nginx proxy doesn't:"
+echo "   - Check nginx proxy configuration"
+echo "   - Restart nginx containers: docker restart nestjs-be-nginx nestjs-fe-nginx"
+echo ""
+echo "2. If both show wrong content:"
+echo "   - Check volume mounts are pointing to correct directories"
+echo "   - Restart all containers: docker-compose down && docker-compose up -d"
+echo ""
+echo "3. If Traefik routing is wrong:"
+echo "   - Check Traefik dashboard at http://localhost:8080"
+echo "   - Verify domain configuration in .env"

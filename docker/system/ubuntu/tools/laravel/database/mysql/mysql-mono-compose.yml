@@ -1,0 +1,26 @@
+  services:
+    mysql:
+      container_name: mysql
+      profiles:
+      - backend
+      - all
+      - mysql
+      image: ${PROJECT_NAME}-${CONFIG_SYSTEM}-mono-${CONFIG_MONOLITHIC}-${CONFIG_MONOLITHIC_VERSION}-mysql-${VERSION}:latest
+      build: .
+      restart: no
+      environment:
+        MYSQL_ROOT_PASSWORD: root
+        MYSQL_DATABASE: ${PROJECT_NAME}
+        MYSQL_USER: ${PROJECT_NAME}
+        MYSQL_PASSWORD: ${PROJECT_NAME}
+        TZ: UTC
+      #tty: true
+      #command: /bin/bash
+      ports:
+        - "3306:3306"
+      volumes:
+        - ${PROJECT_NAME}-${CONFIG_SYSTEM}-mono-${CONFIG_MONOLITHIC}-${CONFIG_MONOLITHIC_VERSION}-mysql-db:/var/lib/mysql
+      networks:
+        - proxy
+        - host_network
+

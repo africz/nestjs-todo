@@ -1,0 +1,24 @@
+
+services:
+  redis-commander:
+    container_name: redis-commander
+    hostname: ${PROJECT_NAME}-${CONFIG_SYSTEM}-redis-commander
+    image: ${PROJECT_NAME}-${CONFIG_SYSTEM}-redis-commander-${VERSION}:latest
+    build: .
+    profiles:
+    - all
+    - backend
+    - redis-commander
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.redis-commander.rule=Host(`redis-commander.localhost`)
+      - traefik.http.routers.redis-commander.tls=${DOCKER_STACK_SSL}
+    depends_on:
+      - redis
+    restart: always
+    environment:
+      - REDIS_HOSTS=redis
+    networks:
+      - proxy
+      - host_network

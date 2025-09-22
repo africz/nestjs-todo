@@ -1,0 +1,2 @@
+include:
+ - ../../../../../tools/laravel/database/mysql/mysql-micro-compose.yml

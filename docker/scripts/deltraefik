@@ -1,0 +1,5 @@
+if (( $# == 0 )); then
+    echo "Traefik name is mandatory parameter!"
+else
+    docker image ls | grep $1 | awk '{print $3}' | xargs docker image rmi 
+fi
