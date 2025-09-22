@@ -127,7 +127,22 @@ async function fetchStatistics() {
 }
 
 function setupEventListeners() {
-    document.getElementById('todo-form').addEventListener('submit', addTodo);
+    document.getElementById('todo-form').addEventListener('submit', function(event) {
+        event.preventDefault();
+        const id = document.getElementById('todo-id').value;
+        if (id) {
+            updateTodo(id, {
+                title: this.title.value,
+                description: this.description.value,
+                date: this.date.value,
+                hours: parseFloat(this.hours.value)
+            });
+            this.reset();
+            document.getElementById('todo-id').value = '';
+        } else {
+            addTodo(event);
+        }
+    });
 
     document.querySelectorAll('.filter-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -158,10 +173,10 @@ function renderTodos(todos) {
                 </div>
             </div>
             <div class="todo-actions">
-                <button class="btn btn-sm btn-primary" onclick="editTodo(${todo.id})">Edit</button>
-                <button class="btn btn-sm btn-danger" onclick="deleteTodo(${todo.id})">Delete</button>
+                <button class="btn btn-sm btn-primary" onclick="editTodo('${todo.id}')">Edit</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteTodo('${todo.id}')">Delete</button>
                 <button class="btn btn-sm ${todo.done ? 'btn-secondary' : 'btn-success'}" 
-                        onclick="toggleDone(${todo.id}, ${todo.done})">
+                        onclick="toggleDone('${todo.id}', ${todo.done})">
                     ${todo.done ? 'Undo' : 'Complete'}
                 </button>
             </div>
@@ -175,4 +190,20 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+function editTodo(id) {
+    const todoItem = document.querySelector(`[data-id='${id}']`);
+    if (!todoItem) return;
+
+    const title = todoItem.querySelector('.todo-title').textContent;
+    const description = todoItem.querySelector('.todo-description').textContent;
+    const date = todoItem.querySelector('.todo-date').textContent;
+    const hours = todoItem.querySelector('.todo-hours').textContent.replace('h', '');
+
+    document.getElementById('title').value = title;
+    document.getElementById('description').value = description;
+    document.getElementById('date').value = new Date(date).toISOString().split('T')[0];
+    document.getElementById('hours').value = hours;
+    document.getElementById('todo-id').value = id;
 }
